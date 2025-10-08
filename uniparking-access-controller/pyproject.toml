@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "uniparking-access-controller"
+version = "0.1.0"
+description = "Access Controller service for UniParking system"
+authors = ["Tu Nombre <tuemail@um.edu.uy>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.115.0"
+uvicorn = {extras = ["standard"], version = "^0.30.0"}
+pydantic = "^2.9.0"
+python-dotenv = "^1.0.1"
+asyncio-mqtt = "^0.16.1"
+SQLAlchemy = "^2.0.36"
+asyncpg = "^0.29.0"
+alembic = "^1.13.3"
+redis = "^5.1.1"
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+structlog = "^24.1.0"
+prometheus-client = "^0.20.0"
+typing-extensions = "^4.12.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+pytest-asyncio = "^0.24.0"
+httpx = "^0.27.0"
+black = "^24.10.0"
+isort = "^5.13.2"
+ruff = "^0.6.9"
+faker = "^30.3.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

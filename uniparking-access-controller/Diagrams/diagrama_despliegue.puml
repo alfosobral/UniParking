@@ -1,0 +1,62 @@
+@startuml
+title UniParking Deployment Diagram
+
+node "Cloud / DC Univ." {
+  node "Kubernetes Cluster" {
+    node "Namespace: uniparking" {
+      node "Pod: API Gateway" as pod_gw {
+        component "Nginx/Traefik"
+      }
+      node "Pod: Auth & Registry API" as pod_auth {
+        component "AuthSvc (FastAPI/Nest)"
+      }
+      node "Pod: Access Controller" as pod_access {
+        component "AccessSvc"
+      }
+      node "Pod: Spot Allocator" as pod_spot {
+        component "SpotSvc"
+      }
+      node "Pod: Display Gateway" as pod_dpgw {
+        component "WS/SSE Gateway"
+      }
+      node "Pod: Notifications" as pod_notif {
+        component "NotifSvc"
+      }
+      node "Pod: Prometheus" as pod_prom {
+        component "Prometheus"
+      }
+      node "Pod: Grafana" as pod_graf {
+        component "Grafana"
+      }
+      node "Pod: OTel Collector" as pod_otel {
+        component "OTel Collector"
+      }
+    }
+  }
+
+  node "Databases" {
+    database "PostgreSQL" as pg
+    node "Redis" as redis
+    node "Broker (opc.)" as broker
+  }
+
+  node "Barrera / Edge" as edge {
+    artifact "Pantalla (browser/app)" as screen
+    artifact "U-LPR reader (externo)" as ulpr
+  }
+}
+
+ulpr --> pod_access : Webhook HTTPS
+screen <-- pod_dpgw : WS/SSE
+pod_auth --> pg : TCP 5432
+pod_spot --> pg : TX SQL
+pod_spot --> redis : TCP 6379
+pod_access --> pg : INSERT events/sessions
+pod_access --> pod_dpgw : notify spot
+pod_notif --> "SMS/Email Provider" : HTTPS
+
+pod_prom ..> (pod_access, pod_spot, pod_auth, pod_dpgw, pod_notif) : scrape /metrics
+pod_graf --> pod_prom : dashboards
+(pod_access, pod_spot, pod_auth, pod_dpgw, pod_notif) --> pod_otel : traces
+
+@enduml
