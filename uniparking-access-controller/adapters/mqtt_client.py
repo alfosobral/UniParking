@@ -4,11 +4,22 @@ from asyncio_mqtt import Client
 from domain.models import SensorEvent, Command
 from application.services import AccessService
 
-BROKER_HOST = "mosquitto"  # o localhost
+"""
+Aqui el AC se suscribe a "sensors/+/events" para poder recibir los mensajes de los distintos
+sensores. 
+
+Por cada mensaje:
+    1) Lo normaliza (parsea) a un SensorEvent (domain.models.py) con event_id, device_id,
+    timestamp, type & payload.
+    2) Llama a AccessService.handle_sensor_event
+
+Implementa MqttActuator.publish_command(cmd) que publica en actuators/{device_id}/commands.
+"""
+
+BROKER_HOST = "mosquitto"
 TOPIC_EVENTS = "sensors/+/events"
 TOPIC_CMDS = "actuators/{device_id}/commands"
 
-# Implementaciones simples de puerto
 class MqttActuator:
     def __init__(self, client: Client):
         self.client = client

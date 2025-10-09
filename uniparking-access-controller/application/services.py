@@ -1,5 +1,15 @@
 from domain.models import SensorEvent, Command
 from typing import Protocol
+from adapters.repo_postgres import AuthorizationRepo
+
+"""
+Logica de la aplicacion sin detalles de red/DB:
+1) Deduplica: detecta y elimina eventos duplicados (repo.seen(ev.event_id))
+2) Persiste: registra el evento (repo.save(ev))
+3) Aplica reglas mínimas: si el evento es del tipo "PLATE_READ" y _is_plate_authorized,
+mite Command(OPEN) hacia el broker para que la barrera lo reciba y se abra.
+
+"""
 
 class ActuatorOut(Protocol):
     async def publish_command(self, cmd: Command) -> None: ...
@@ -28,5 +38,6 @@ class AccessService:
                 await self.actuator.publish_command(cmd)
 
     async def _is_plate_authorized(self, plate: str) -> bool:
-        # TODO: consultar al servicio de Autorizaciones o cache local
-        return plate is not None and len(plate) >= 5
+        if not plate:
+            return False
+        return await self.auth_repo.is_plate_active(plate)

@@ -3,6 +3,16 @@ from typing import Literal, Optional, Dict
 from datetime import datetime
 import uuid
 
+"""
+Contratos del dominio (Pydantic): SensorEvent, Command, tipos de evento, timestamps, etc.
+
+Pydantic es una biblioteca de Python para la validación y serialización de datos que 
+utiliza sugerencias de tipo para definir modelos de datos. Permite crear clases con 
+atributos de tipo específico y automáticamente valida, convierte y asegura que los datos 
+coincidan con esos tipos, reduciendo errores y haciendo el código más robusto, legible y 
+fácil de depurar. 
+"""
+
 EventType = Literal["PLATE_READ", "LOOP_TRIGGER", "BARRIER_STATE", "HEALTH"]
 
 class SensorEvent(BaseModel):

@@ -3,9 +3,22 @@ from domain.models import Command, SensorEvent
 from application.services import AccessService
 from adapters.mqtt_client import mqtt_actuator, event_repo
 
+"""
+Endpoints REST (y eventualmente webhook)
+
+Aqui el programa de AC publica comandos a actuadores MQTT (programas que inteactuan 
+con el broker).
+
+    - POST /v1/commands/open|close publica comandos para la barrera
+    - POST /v1/sensors/events es un webhook opcional por si algun sensor se comunica
+    por HTTP (no MQTT)
+
+Internamente instancia AccessService y le pasa dependencias (actuador MQTT (broker) + repo de eventos).
+Esta clase se importa desde application.services.py
+"""
+
 api_router = APIRouter()
 
-# Comando externo para abrir/cerrar
 @api_router.post("/commands/open")
 async def open_barrier(cmd: Command):
     cmd.action = "OPEN"
@@ -18,7 +31,6 @@ async def close_barrier(cmd: Command):
     await mqtt_actuator.publish_command(cmd)
     return {"status": "sent", "request_id": cmd.request_id}
 
-# Webhook opcional si algún sensor llama por HTTP
 @api_router.post("/sensors/events")
 async def ingest_event(ev: SensorEvent):
     service = AccessService(mqtt_actuator, event_repo)
