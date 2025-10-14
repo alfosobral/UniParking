@@ -1,4 +1,3 @@
-import asyncio
 import uvicorn
 from fastapi import FastAPI
 from adapters.http_api import api_router

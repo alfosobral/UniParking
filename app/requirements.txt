@@ -19,3 +19,4 @@ black==24.10.0
 isort==5.13.2
 ruff==0.6.9
 faker==30.3.0
+paho-mqtt==1.6.1

@@ -1,0 +1,50 @@
+services:
+  api:
+    build:
+      context: .  
+      dockerfile: Dockerfile
+    command: uvicorn main:app --host 0.0.0.0 --port 8080 --reload
+    environment:
+      - MQTT_HOST=mosquitto
+      - DATABASE_URL=sqlite+aiosqlite:///app/uniparking.db
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - .:/app
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    command: ["mosquitto","-c","/mosquitto/config/mosquitto.conf","-v"]
+    ports:
+      - "1883:1883"
+    volumes:
+      - type: bind
+        source: ./mosquitto-config
+        target: /mosquitto/config
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
+
+volumes:
+  redis-data:
+  mosquitto-data:
+  mosquitto-log:
