@@ -23,8 +23,11 @@ TOPIC_CMDS = "actuators/{device_id}/commands"
 class MqttActuator:
     def __init__(self, client: Client):
         self.client = client
+        
     async def publish_command(self, cmd: Command) -> None:
         topic = TOPIC_CMDS.format(device_id=cmd.device_id)
+        print(f"Publicando comando en tópico: {topic}")
+        print(f"Payload: {json.dumps(cmd.model_dump())}")
         await self.client.publish(topic, json.dumps(cmd.model_dump()))
 
 class InMemoryEventRepo:

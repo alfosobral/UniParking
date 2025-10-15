@@ -22,6 +22,7 @@ class AccessService:
     def __init__(self, actuator: ActuatorOut, repo: EventRepo):
         self.actuator = actuator
         self.repo = repo
+        #self.auth_repo = auth_repo        
 
     async def handle_sensor_event(self, ev: SensorEvent):
         # Dedupe
@@ -29,15 +30,22 @@ class AccessService:
             return
         await self.repo.save_event(ev)
 
+        print(f"Recibido evento: {ev}")
+        print(f"Tipo de evento: {ev.type}")
+        print(f"Payload: {ev.payload}")
+
         # Reglas mínimas (ejemplo trivial)
         if ev.type == "PLATE_READ":
             plate = ev.payload.get("plate")
             ok = await self._is_plate_authorized(plate)
             if ok:
                 cmd = Command(device_id=ev.device_id, action="OPEN", reason="ENTRY_AUTHORIZED")
+                print(f"Publicando comando OPEN para device_id: {ev.device_id}")
                 await self.actuator.publish_command(cmd)
 
     async def _is_plate_authorized(self, plate: str) -> bool:
-        if not plate:
+        return plate in ["SBA1234"]
+
+        """if not plate:
             return False
-        return await self.auth_repo.is_plate_active(plate)
+        return await self.auth_repo.is_plate_active(plate)"""
