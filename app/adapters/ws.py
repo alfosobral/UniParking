@@ -4,7 +4,10 @@ from collections import defaultdict
 import json, traceback
 from fastapi.encoders import jsonable_encoder
 
+
 router = APIRouter()
+SPOT_FEED_ROOM = "spot:feed"
+
 
 class WSManager:
     def __init__(self):
@@ -55,5 +58,15 @@ async def ws_endpoint(ws: WebSocket):
     try:
         while True:
             await ws.receive_text()  # opcional
+    except WebSocketDisconnect:
+        manager.disconnect(ws)
+
+@router.websocket("/ws/spot-feed")
+async def ws_spot_feed(ws: WebSocket):
+    await ws.accept()
+    await manager.connect(ws, rooms=[SPOT_FEED_ROOM])
+    try:
+        while True:
+            await ws.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(ws)

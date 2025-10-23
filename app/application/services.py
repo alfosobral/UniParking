@@ -3,6 +3,9 @@ from typing import Protocol
 from adapters.repo_postgres import AuthorizationRepo
 from adapters.ws import manager
 from fastapi.encoders import jsonable_encoder
+from domain.SpotAllocator import SpotAllocator
+from adapters.ws import SPOT_FEED_ROOM
+from datetime import datetime, timezone
 
 """
 Logica de la aplicacion sin detalles de red/DB:
@@ -21,9 +24,10 @@ class EventRepo(Protocol):
     async def seen_event(self, event_id: str) -> bool: ...
 
 class AccessService:
-    def __init__(self, actuator: ActuatorOut, repo: EventRepo):
+    def __init__(self, actuator: ActuatorOut, repo: EventRepo, spot_allocator: SpotAllocator):
         self.actuator = actuator
         self.repo = repo
+        self.spot_allocator = spot_allocator
         #self.auth_repo = auth_repo   
 
     async def _is_plate_authorized(self, plate: str) -> bool:
@@ -61,9 +65,21 @@ class AccessService:
                 "device_id": ev.device_id,
                 "payload": {"result": "DENY", "plate": plate}
             })
+            await manager.send_room(
+                SPOT_FEED_ROOM,
+                {
+                    "type": "spot_assigned",
+                    "payload": {
+                        "spot": "ACCESO DENEGADO",     
+                        "plate": plate,       
+                        "gate_id": ev.device_id,
+                        "event_id": ev.event_id,
+                        "assigned_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                }
+            )
             # opcional:
             # await manager.send_all({"type":"decision","device_id":ev.device_id,"payload":{"result":"DENY","plate":plate}})
-            return
         else:# ok → publicar comando + notificar
             cmd = Command(device_id=ev.device_id, action="OPEN", reason="ENTRY_AUTHORIZED")
             await self.actuator.publish_command(cmd)
@@ -79,6 +95,21 @@ class AccessService:
                 "device_id": ev.device_id,
                 "payload": {"result": "ALLOW", "plate": plate}
             })
-                    
+
+            spot = await self.spot_allocator.find_spot()
+            await manager.send_room(
+                SPOT_FEED_ROOM,
+                {
+                    "type": "spot_assigned",
+                    "payload": {
+                        "spot": spot,            # ← string p.ej. "A01"
+                        "plate": plate,          # info útil para mostrar
+                        "gate_id": ev.device_id,
+                        "event_id": ev.event_id,
+                        "assigned_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                }
+            )
+
 
 

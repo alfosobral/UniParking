@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>UniParking – Spot asignado (feed general)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/ws-spot.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🅿️</span>
+      <h1>UniParking • Spot asignado (general)</h1>
+    </div>
+    <div class="status">
+      <span id="ws-dot" class="dot offline"></span>
+      <span id="ws-status">Offline</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card controls">
+      <div class="row">
+        <button id="connectBtn" class="btn">Conectar</button>
+        <button id="disconnectBtn" class="btn ghost">Desconectar</button>
+      </div>
+      <p class="hint">
+        Este panel escucha <code>/ws/spot-feed</code> y muestra el último lugar asignado por el backend a cualquier vehículo autorizado.
+      </p>
+    </section>
+
+    <section class="card spot-card">
+      <h2>Próximo lugar asignado</h2>
+      <div id="spotBox" class="spot-box">
+        <div id="spot" class="spot">—</div>
+      </div>
+      <div id="meta" class="note">Esperando asignaciones…</div>
+    </section>
+
+    <section class="card feed">
+      <h3>Historial</h3>
+      <ul id="feed" class="feed-list"></ul>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>WS: <code>ws://HOST/ws/spot-feed</code></span>
+  </footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const wsStatus = $("ws-status");
+    const wsDot = $("ws-dot");
+    const spotEl = $("spot");
+    const metaEl = $("meta");
+    const feed = $("feed");
+
+    let ws = null;
+    let reconnectTimer = null;
+    let reconnectAttempt = 0;
+
+    function setStatus(online) {
+      wsDot.className = "dot " + (online ? "online" : "offline");
+      wsStatus.textContent = online ? "Online" : "Offline";
+    }
+
+    function addHistory(text) {
+      const li = document.createElement("li");
+      li.className = "feed-item";
+      const ts = new Date().toLocaleString();
+      li.innerHTML = `<span class="ts">${ts}</span> <code>${text}</code>`;
+      feed.prepend(li);
+      if (feed.children.length > 100) feed.removeChild(feed.lastChild);
+    }
+
+    function showSpotAssign(payload) {
+      // payload puede ser {"spot":"A01","plate":"SBA1234","gate_id":"gate-01","assigned_at":"..."}
+      let spot = payload;
+      let plate = "";
+      let gate = "";
+      let when = "";
+
+      if (typeof payload === "object" && payload !== null) {
+        spot  = payload.spot ?? "—";
+        plate = payload.plate ?? "";
+        gate  = payload.gate_id ?? "";
+        when  = payload.assigned_at ? new Date(payload.assigned_at).toLocaleString() : "";
+      }
+
+      spotEl.textContent = spot || "—";
+      spotEl.classList.add("pop");
+      setTimeout(() => spotEl.classList.remove("pop"), 300);
+
+      const parts = [];
+      if (plate) parts.push(`Patente: ${plate}`);
+      if (gate)  parts.push(`Acceso: ${gate}`);
+      if (when)  parts.push(`Asignado: ${when}`);
+      metaEl.textContent = parts.length ? parts.join(" · ") : "Asignación recibida";
+    }
+
+    function connect() {
+      try { ws && ws.close(); } catch {}
+      const url = `ws://${location.host}/ws/spot-feed`;
+      ws = new WebSocket(url);
+
+      ws.onopen = () => {
+        setStatus(true);
+        reconnectAttempt = 0;
+        addHistory("Conectado a /ws/spot-feed");
+        metaEl.textContent = "Esperando asignaciones…";
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === "spot_assigned") {
+            const payload = msg.payload ?? {};
+            showSpotAssign(payload);
+            const logText = typeof payload === "string"
+              ? `spot_assigned ${payload}`
+              : `spot_assigned spot=${payload.spot ?? "—"} plate=${payload.plate ?? "-"} gate=${payload.gate_id ?? "-"}`;
+            addHistory(logText);
+          } else {
+            addHistory(`msg: ${e.data}`);
+          }
+        } catch {
+          addHistory(`raw: ${e.data}`);
+        }
+      };
+
+      ws.onclose = () => {
+        setStatus(false);
+        addHistory("Conexión cerrada");
+        scheduleReconnect();
+      };
+
+      ws.onerror = () => {
+        setStatus(false);
+        addHistory("Error de conexión");
+        try { ws.close(); } catch {}
+      };
+    }
+
+    function scheduleReconnect() {
+      const backoff = Math.min(1000 * Math.pow(2, reconnectAttempt++), 8000);
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, backoff);
+    }
+
+    $("connectBtn").addEventListener("click", connect);
+    $("disconnectBtn").addEventListener("click", () => { try { ws && ws.close(); } catch {} });
+
+    // Conectar automáticamente al cargar
+    connect();
+  </script>
+</body>
+</html>

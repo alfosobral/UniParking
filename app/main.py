@@ -5,6 +5,7 @@ from adapters.mqtt_client import start_mqtt, stop_mqtt
 from adapters.ws import router as ws_router
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from domain.SpotAllocator import SpotAllocator
 
 """ 
 == MQTT ==
@@ -34,9 +35,14 @@ app.include_router(api_router, prefix="/v1")
 app.include_router(ws_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.get("/ws-test")
+
+@app.get("/ws/test")
 def ws_test():
     return FileResponse("static/ws-dashboard.html", media_type="text/html")
+
+@app.get("/ws/spot-feed")
+def ws_spot():
+    return FileResponse("static/ws-spot.html", media_type="text/html")
 
 
 @app.on_event("startup")
