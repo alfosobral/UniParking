@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>UniParking – Gate Live</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/ws-dashboard.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🅿️</span>
+      <h1>UniParking • Access Controller</h1>
+    </div>
+    <div class="status">
+      <span id="ws-dot" class="dot offline"></span>
+      <span id="ws-status">Offline</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="controls card">
+      <div class="row">
+        <label for="device">Device ID</label>
+        <input id="device" type="text" value="gate-01" />
+        <button id="connectBtn" class="btn">Conectar</button>
+        <button id="disconnectBtn" class="btn ghost">Desconectar</button>
+      </div>
+      <div class="row">
+        <button id="openBtn" class="btn primary">OPEN</button>
+        <input id="reason" type="text" placeholder="Reason (opcional)" />
+        <span class="hint">Envía POST /v1/commands/open</span>
+      </div>
+      <div class="stats">
+        <div class="kpi"><div class="kpi-num" id="kpiEvents">0</div><div class="kpi-label">Eventos</div></div>
+        <div class="kpi"><div class="kpi-num allow" id="kpiAllow">0</div><div class="kpi-label">ALLOW</div></div>
+        <div class="kpi"><div class="kpi-num deny" id="kpiDeny">0</div><div class="kpi-label">DENY</div></div>
+      </div>
+    </section>
+
+    <section class="feed card">
+      <div class="feed-head">
+        <h2>Live feed</h2>
+        <div class="filters">
+          <label><input type="checkbox" class="flt" value="sensor_event" checked> sensor_event</label>
+          <label><input type="checkbox" class="flt" value="decision" checked> decision</label>
+          <label><input type="checkbox" class="flt" value="command" checked> command</label>
+        </div>
+      </div>
+      <ul id="feed" class="feed-list"></ul>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>WebSocket: <code>/ws?device_id=&lt;id&gt;</code> • API: <code>POST /v1/commands/open</code></span>
+  </footer>
+
+  <script>
+    // ---------- helpers ----------
+    const $ = (id) => document.getElementById(id);
+    const wsStatus = $("ws-status");
+    const wsDot = $("ws-dot");
+    const feed = $("feed");
+    const kpiEvents = $("kpiEvents");
+    const kpiAllow = $("kpiAllow");
+    const kpiDeny = $("kpiDeny");
+    const filters = () => Array.from(document.querySelectorAll(".flt:checked")).map(x=>x.value);
+
+    let ws = null;
+    let reconnectTimer = null;
+    let reconnectAttempt = 0;
+
+    function setStatus(online) {
+      wsDot.className = "dot " + (online ? "online" : "offline");
+      wsStatus.textContent = online ? "Online" : "Offline";
+    }
+
+    function isoNow() { return new Date().toISOString(); }
+
+    function addItem({type, device_id, payload}) {
+      kpiEvents.textContent = 1 + (+kpiEvents.textContent || 0);
+      if (type === "decision") {
+        const res = (payload?.result || "").toUpperCase();
+        if (res === "ALLOW") kpiAllow.textContent = 1 + (+kpiAllow.textContent || 0);
+        if (res === "DENY")  kpiDeny.textContent  = 1 + (+kpiDeny.textContent  || 0);
+      }
+
+      if (!filters().includes(type)) return;
+
+      const li = document.createElement("li");
+      li.className = "feed-item";
+      li.innerHTML = `
+        <div class="row">
+          <span class="badge ${type}">${type}</span>
+          <span class="mono dev">device: ${device_id || "-"}</span>
+          <span class="ts">${new Date().toLocaleString()}</span>
+        </div>
+        <pre>${JSON.stringify(payload ?? {}, null, 2)}</pre>
+      `;
+      feed.prepend(li);
+      // limitar a 200 items
+      if (feed.children.length > 200) feed.removeChild(feed.lastChild);
+    }
+
+    function connect() {
+      const dev = $("device").value.trim() || "gate-01";
+      if (ws && ws.readyState === WebSocket.OPEN) try { ws.close(); } catch {}
+      const url = `ws://${location.host}/ws?device_id=${encodeURIComponent(dev)}`;
+      ws = new WebSocket(url);
+
+      ws.onopen = () => {
+        setStatus(true);
+        reconnectAttempt = 0;
+        addItem({type:"system", device_id:dev, payload:{event:"connected", ts: isoNow()}});
+      };
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          // normalizamos estructura esperada: {type, device_id, payload}
+          addItem({
+            type: msg.type || "message",
+            device_id: msg.device_id || dev,
+            payload: msg.payload ?? msg
+          });
+        } catch (err) {
+          addItem({type:"message", device_id:dev, payload:{raw:e.data}});
+        }
+      };
+      ws.onclose = () => {
+        setStatus(false);
+        scheduleReconnect();
+      };
+      ws.onerror = () => {
+        setStatus(false);
+        try { ws.close(); } catch {}
+      };
+    }
+
+    function scheduleReconnect() {
+      const dev = $("device").value.trim() || "gate-01";
+      const backoff = Math.min(1000 * Math.pow(2, reconnectAttempt++), 10000);
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        addItem({type:"system", device_id:dev, payload:{event:"reconnect", attempt: reconnectAttempt}});
+        connect();
+      }, backoff);
+    }
+
+    async function openGate() {
+      const dev = $("device").value.trim() || "gate-01";
+      const reason = $("reason").value.trim() || "MANUAL_UI";
+      try {
+        const res = await fetch(`/v1/commands/open`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ device_id: dev, action: "OPEN", reason })
+        });
+        const data = await res.json();
+        addItem({type:"command_req", device_id:dev, payload: data});
+      } catch (e) {
+        addItem({type:"error", device_id:dev, payload:{message:String(e)}});
+      }
+    }
+
+    // ---------- wireup ----------
+    $("connectBtn").addEventListener("click", connect);
+    $("disconnectBtn").addEventListener("click", () => ws?.close());
+    $("openBtn").addEventListener("click", openGate);
+    document.querySelectorAll(".flt").forEach(cb => cb.addEventListener("change", () => {
+      // simplemente no agregamos los nuevos mensajes filtrados; los viejos quedan.
+    }));
+    // conectar al cargar
+    connect();
+  </script>
+</body>
+</html>

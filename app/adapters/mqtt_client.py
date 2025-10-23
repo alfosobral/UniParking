@@ -3,6 +3,7 @@ import asyncio
 from asyncio_mqtt import Client
 from domain.models import SensorEvent, Command
 from application.services import AccessService
+from adapters.ws import manager
 
 """
 Aqui el AC se suscribe a "sensors/+/events" para poder recibir los mensajes de los distintos
@@ -44,27 +45,30 @@ _client: Client | None = None
 mqtt_actuator: MqttActuator | None = None
 event_repo = InMemoryEventRepo()
 
-async def _consume():
-    global _client, mqtt_actuator
-    async with Client(BROKER_HOST) as client:
-        _client = client
-        mqtt_actuator = MqttActuator(client)
-        service = AccessService(mqtt_actuator, event_repo)
-        async with client.unfiltered_messages() as messages:
-            await client.subscribe(TOPIC_EVENTS)
-            async for msg in messages:
-                try:
-                    data = json.loads(msg.payload.decode())
-                    ev = SensorEvent(**data)
-                    await service.handle_sensor_event(ev)
-                except Exception:
-                    # loggear error
-                    pass
-
 _consume_task: asyncio.Task | None = None
 
-async def start_mqtt():
+async def start_mqtt(on_event):
     global _consume_task
+    async def _consume():
+        global _client, mqtt_actuator
+        print("1")
+        async with Client(BROKER_HOST) as client:
+            _client = client
+            print("2")
+            mqtt_actuator = MqttActuator(client)
+            service = AccessService(mqtt_actuator, event_repo)
+            async with client.unfiltered_messages() as messages:
+                await client.subscribe(TOPIC_EVENTS)
+                print("[MQTT] subscibed to", TOPIC_EVENTS)
+                async for msg in messages:
+                    try:
+                        data = json.loads(msg.payload.decode())
+                        ev = SensorEvent(**data)
+                        await service.handle_sensor_event(ev)
+                        await on_event(data)
+                    except Exception:
+                        # loggear error
+                        import traceback; traceback.print_exc()
     _consume_task = asyncio.create_task(_consume())
 
 async def stop_mqtt():

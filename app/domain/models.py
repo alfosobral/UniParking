@@ -14,6 +14,7 @@ fácil de depurar.
 """
 
 EventType = Literal["PLATE_READ", "LOOP_TRIGGER", "BARRIER_STATE", "HEALTH"]
+EventResult = Literal["ALLOW", "DENY"]
 
 class SensorEvent(BaseModel):
     event_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -26,3 +27,14 @@ class Command(BaseModel):
     device_id: str
     action: Literal["OPEN", "CLOSE"]
     reason: Optional[str] = None
+
+class CommandMessage(BaseModel):
+    type: str = "command"
+    device_id: str
+    payload: Command
+
+class DecisionMessage(BaseModel):
+    type: str = "decision"
+    result: EventResult
+    device_id: str
+    plate: str

@@ -1,0 +1,7 @@
+{
+  "event_id": "123e4567-e89b-12d3-a456-426614174001",
+  "device_id": "gate-01",
+  "timestamp": "2025-11-14T12:01:00Z",
+  "type": "PLATE_READ",
+  "payload": { "plate": "SBA1235", "confidence": 0.97 }
+}

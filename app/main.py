@@ -2,6 +2,9 @@ import uvicorn
 from fastapi import FastAPI
 from adapters.http_api import api_router
 from adapters.mqtt_client import start_mqtt, stop_mqtt
+from adapters.ws import router as ws_router
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 """ 
 == MQTT ==
@@ -28,10 +31,24 @@ El AC se suscribe al broker de MQTT en adapters.mqtt_client.py.
 
 app = FastAPI(title="UniParking Access Controller", version="0.1.0")
 app.include_router(api_router, prefix="/v1")
+app.include_router(ws_router)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/ws-test")
+def ws_test():
+    return FileResponse("static/ws-dashboard.html", media_type="text/html")
+
 
 @app.on_event("startup")
 async def on_startup():
-    await start_mqtt()
+    async def on_event(ev: dict):
+        if ev.get("type") != "PLATE_READ":
+            return
+        plate = ev.get("payload", {}).get("plate")
+
+        print("[AC] event:", ev)
+    
+    await start_mqtt(on_event)
 
 @app.on_event("shutdown")
 async def on_shutdown():    
