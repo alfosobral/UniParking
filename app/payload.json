@@ -1,0 +1,7 @@
+﻿{
+  "event_id":"e-allow-99",
+  "device_id":"gate-01",
+  "timestamp":"2025-10-14T12:01:00Z",
+  "type":"PLATE_READ",
+  "payload":{"plate":"SBA1234","confidence":0.97}
+}

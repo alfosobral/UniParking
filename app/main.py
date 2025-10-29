@@ -6,6 +6,8 @@ from adapters.ws import router as ws_router
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from domain.SpotAllocator import SpotAllocator
+from deps import SessionLocal
+from .domain.SpotAllocator import SpotAllocatorIndexBuilder,SpotIndex
 
 """ 
 == MQTT ==
@@ -44,16 +46,22 @@ def ws_test():
 def ws_spot():
     return FileResponse("static/ws-spot.html", media_type="text/html")
 
-
 @app.on_event("startup")
 async def on_startup():
+    # 1) Construir el/los KD-Tree desde la BDD
+    async with SessionLocal() as session:
+        builder = SpotAllocatorIndexBuilder(table_name="spots")
+        spot_index: SpotIndex = await builder.build_from_db(session)
+        app.state.spot_index = spot_index
+
+    # 2) Tu callback MQTT tal cual lo tenías
     async def on_event(ev: dict):
         if ev.get("type") != "PLATE_READ":
             return
         plate = ev.get("payload", {}).get("plate")
-
         print("[AC] event:", ev)
-    
+
+    # 3) Arrancar MQTT
     await start_mqtt(on_event)
 
 @app.on_event("shutdown")

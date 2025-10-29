@@ -6,6 +6,9 @@ from fastapi.encoders import jsonable_encoder
 from domain.SpotAllocator import SpotAllocator
 from adapters.ws import SPOT_FEED_ROOM
 from datetime import datetime, timezone
+from sqlalchemy import text
+from deps import engine
+
 
 """
 Logica de la aplicacion sin detalles de red/DB:
@@ -31,11 +34,12 @@ class AccessService:
         #self.auth_repo = auth_repo   
 
     async def _is_plate_authorized(self, plate: str) -> bool:
-        return plate in ["SBA1234"]
-
-    """if not plate:
-        return False
-    return await self.auth_repo.is_plate_active(plate)"""     
+        stmt = text('SELECT "type" FROM cars WHERE plate = :plate LIMIT 1')
+        async with self.engine.connect() as conn:
+            res = await conn.execute(stmt, {"plate": plate})
+            return res.scalar_one_or_none()
+        raise Exception
+ 
 
     async def handle_sensor_event(self, ev: SensorEvent):
     # 0) dedupe
@@ -55,10 +59,10 @@ class AccessService:
 
         plate = ev.payload.get("plate")
         print(plate)
-        ok = await self._is_plate_authorized(plate)
-        print(ok)
+        car_type = await self._is_plate_authorized(plate)
+        print(car_type)
 
-        if not ok:
+        if not car_type:
             # decisión DENY → room (y opcional: broadcast)
             await manager.send_room(f"gate:{ev.device_id}", {
                 "type": "decision",
@@ -96,7 +100,7 @@ class AccessService:
                 "payload": {"result": "ALLOW", "plate": plate}
             })
 
-            spot = await self.spot_allocator.find_spot()
+            spot = await self.spot_allocator.find_spot(car_type)
             await manager.send_room(
                 SPOT_FEED_ROOM,
                 {

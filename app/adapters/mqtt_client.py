@@ -6,7 +6,7 @@ from asyncio_mqtt import Client
 from domain.models import SensorEvent, Command
 from application.services import AccessService
 from adapters.ws import manager
-from domain.SpotAllocator import SpotAllocator  # ← nombre correcto
+from domain.SpotAllocator import SpotAllocator  
 
 BROKER_HOST = "mosquitto"
 TOPIC_EVENTS = "sensors/+/events"
