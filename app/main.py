@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from domain.SpotAllocator import SpotAllocator
 from deps import SessionLocal
-from .domain.SpotAllocator import SpotAllocatorIndexBuilder,SpotIndex
+from domain.SpotAllocator import SpotAllocatorIndexBuilder,SpotIndex
 
 """ 
 == MQTT ==
@@ -50,8 +50,9 @@ def ws_spot():
 async def on_startup():
     # 1) Construir el/los KD-Tree desde la BDD
     async with SessionLocal() as session:
-        builder = SpotAllocatorIndexBuilder(table_name="spots")
-        spot_index: SpotIndex = await builder.build_from_db(session)
+        builder = SpotAllocatorIndexBuilder()
+        allocator = SpotAllocator(builder)
+        spot_index: SpotIndex = await allocator.find_spot(session, car_type="GENERAL")
         app.state.spot_index = spot_index
 
     # 2) Tu callback MQTT tal cual lo tenías

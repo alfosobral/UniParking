@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from domain.models import Command, SensorEvent
 from application.services import AccessService
-from adapters.mqtt_client import mqtt_actuator, event_repo, spot_allocator  # ← importar de mqtt_client
+from adapters.mqtt_client import mqtt_actuator, event_repo, spot_allocator
+from deps import SessionLocal
 
 api_router = APIRouter()
 
@@ -19,6 +20,6 @@ async def close_barrier(cmd: Command):
 
 @api_router.post("/sensors/events")
 async def ingest_event(ev: SensorEvent):
-    service = AccessService(mqtt_actuator, event_repo, spot_allocator)
+    service = AccessService(mqtt_actuator, event_repo, spot_allocator, SessionLocal)
     await service.handle_sensor_event(ev)
     return {"accepted": True, "event_id": ev.event_id}

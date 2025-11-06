@@ -2,11 +2,12 @@ import json
 import asyncio
 from typing import Optional
 from asyncio_mqtt import Client
+from deps import SessionLocal
 
 from domain.models import SensorEvent, Command
 from application.services import AccessService
 from adapters.ws import manager
-from domain.SpotAllocator import SpotAllocator  
+from domain.SpotAllocator import SpotAllocator, SpotAllocatorIndexBuilder  
 
 BROKER_HOST = "mosquitto"
 TOPIC_EVENTS = "sensors/+/events"
@@ -43,7 +44,7 @@ class InMemoryEventRepo:
 _client: Optional[Client] = None
 mqtt_actuator = MqttActuator()          # ← sin client, se inyecta en start_mqtt
 event_repo = InMemoryEventRepo()
-spot_allocator = SpotAllocator()        # ← instancia ÚNICA y correcta
+spot_allocator = SpotAllocator(SpotAllocatorIndexBuilder())        # ← instancia ÚNICA y correcta
 
 _consume_task: Optional[asyncio.Task] = None
 
@@ -56,7 +57,7 @@ async def start_mqtt(on_event):
         async with Client(BROKER_HOST) as client:
             _client = client
             mqtt_actuator.set_client(client)     # ← inyección
-            service = AccessService(mqtt_actuator, event_repo, spot_allocator)
+            service = AccessService(mqtt_actuator, event_repo, spot_allocator, SessionLocal)
 
             async with client.unfiltered_messages() as messages:
                 await client.subscribe(TOPIC_EVENTS)

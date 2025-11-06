@@ -6,7 +6,7 @@ services:
     command: uvicorn main:app --host 0.0.0.0 --port 8080 --reload
     environment:
       - MQTT_HOST=mosquitto
-      - DATABASE_URL=sqlite+aiosqlite:///app/uniparking.db
+      - DATABASE_URL=postgresql+asyncpg://uniparking:uniparking@postgres:5432/uniparking
       - REDIS_URL=redis://redis:6379/0
     volumes:
       - .:/app
@@ -17,6 +17,8 @@ services:
         condition: service_healthy
       mosquitto:
         condition: service_started
+      postgres:
+        condition: service_healthy
 
   redis:
     image: redis:7
@@ -42,9 +44,28 @@ services:
         target: /mosquitto/config
       - mosquitto-data:/mosquitto/data
       - mosquitto-log:/mosquitto/log
+  postgres:
+    image: postgres:16
+    container_name: uniparking-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: uniparking
+      POSTGRES_PASSWORD: uniparking
+      POSTGRES_DB: uniparking
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uniparking -d uniparking"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 
 volumes:
   redis-data:
   mosquitto-data:
   mosquitto-log:
+  pgdata: {}

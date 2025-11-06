@@ -11,12 +11,10 @@ from deps import SessionLocal
 
 @dataclass(frozen=True)
 class FreeSpot:
-    id: int
+    spot_code: int
     x: float
     y: float
     sector: Optional[str]  # 'accesible' o None/otro
-    level: int             # todos 1 por ahora
-
 
 class SpotIndex:
     """
@@ -40,7 +38,7 @@ class SpotIndex:
         return ids, xy, kdt
 
     def build(self, free_spots: List[FreeSpot]) -> None:
-        spots = [(s.code, s.x, s.y) for s in free_spots]
+        spots = [(s.spot_code, s.x, s.y) for s in free_spots]
 
         self.ids, self.xy, self.kdt = self._build_single(spots)
 
@@ -82,37 +80,47 @@ class SpotAllocatorIndexBuilder:
         self.table_name = table_name
 
     async def fetch_free_spots(self, session: AsyncSession, car_type) -> List[FreeSpot]:
-        filter = ""
-        if car_type == "GENERAL":
-            filter = "AND type = 'GENERAL'"
+        
+        if car_type and car_type != "GENERAL":
+            q = text(f"""
+                SELECT spot_code, x_coord, y_coord, spot_type
+                FROM {self.table_name}
+                WHERE occupied = FALSE AND spot_type = :car_type
+            """)
+            rows = (await session.execute(q, {"car_type": car_type})).all()
+        else:
+            q = text(f"""
+                SELECT spot_code, x_coord, y_coord, spot_type
+                FROM {self.table_name}
+                WHERE occupied = FALSE
+            """)
+            rows = (await session.execute(q)).all()
 
-        # Trae SOLO libres. Si querés filtrar por level aquí, agregalo al WHERE.
-        q = text(f"""
-            SELECT code, x, y, type
-            FROM {self.table_name}
-            WHERE occupied = FALSE {filter}
-        """)
-        rows = (await session.execute(q)).all()
-
-        return [
+        # rows: [(code, x, y, spot_type), ...]
+        free_spots = [
             FreeSpot(
-                id=int(r[0]),
+                spot_code=str(r[0]),              # code es text
                 x=float(r[1]),
                 y=float(r[2]),
                 sector=(r[3] if r[3] is not None else None),
-                level=int(r[4]),
+                # si FreeSpot tenía 'level', quítalo o ponlo en None
             )
             for r in rows
         ]
+        return free_spots
 
-    async def build_from_db(self,car_type) -> SpotIndex:
-        free_spots = await self.fetch_free_spots(SessionLocal,car_type)
+    async def build_from_db(self, session: AsyncSession, car_type: Optional[str]) -> SpotIndex:
+        free_spots = await self.fetch_free_spots(session, car_type)
         index = SpotIndex()
         index.build(free_spots)
         return index
     
 class SpotAllocator:
-    async def fetch_spot(self,car_type):
-        index = SpotAllocatorIndexBuilder.build_from_db(car_type)[0]
-        return index
+    def __init__(self, builder: SpotAllocatorIndexBuilder) -> None:
+        self.builder = builder
+
+    async def find_spot(self, session: AsyncSession, car_type: Optional[str]) -> SpotIndex:
+        # ¡Ojo el await!
+        index = await self.builder.build_from_db(session, car_type)
+        return index.ids[0]
     
