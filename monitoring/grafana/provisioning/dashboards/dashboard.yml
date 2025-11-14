@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: 'UniParking'
+    orgId: 1
+    folder: 'UniParking'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

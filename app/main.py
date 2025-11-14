@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from domain.SpotAllocator import SpotAllocator
 from deps import SessionLocal
 from domain.SpotAllocator import SpotAllocatorIndexBuilder,SpotIndex
+from prometheus_fastapi_instrumentator import Instrumentator
 
 """ 
 == MQTT ==
@@ -37,6 +38,7 @@ app.include_router(api_router, prefix="/v1")
 app.include_router(ws_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+Instrumentator().instrument(app).expose(app)
 
 @app.get("/ws/test")
 def ws_test():
@@ -69,5 +71,3 @@ async def on_startup():
 async def on_shutdown():    
     await stop_mqtt()
 
-if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8080, reload=True)

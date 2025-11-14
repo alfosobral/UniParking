@@ -1,4 +1,7 @@
+version: "3.9"
+
 services:
+
   api:
     build:
       context: .  
@@ -19,6 +22,8 @@ services:
         condition: service_started
       postgres:
         condition: service_healthy
+    networks:
+      - uni-parking-net
 
   redis:
     image: redis:7
@@ -32,6 +37,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    networks:
+      - uni-parking-net
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -44,6 +51,9 @@ services:
         target: /mosquitto/config
       - mosquitto-data:/mosquitto/data
       - mosquitto-log:/mosquitto/log
+    networks:
+      - uni-parking-net
+
   postgres:
     image: postgres:16
     container_name: uniparking-postgres
@@ -62,6 +72,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - uni-parking-net 
 
 
 volumes:
@@ -69,3 +81,7 @@ volumes:
   mosquitto-data:
   mosquitto-log:
   pgdata: {}
+
+networks:
+  uni-parking-net:
+    external: true

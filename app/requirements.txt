@@ -23,3 +23,6 @@ paho-mqtt==1.6.1
 numpy==2.3.4
 scikit-learn==1.7.2
 aiosqlite==0.21.0
+prometheus-fastapi-instrumentator==5.9.0
+
+
